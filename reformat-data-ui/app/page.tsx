@@ -14,6 +14,9 @@ export default function Home() {
   const [errorMessage, setErrorMessage] = useState("")
   const [fileName, setFileName] = useState("")
 
+  // Production base path for GitHub Pages
+  const basePath = process.env.NODE_ENV === 'production' ? '/data-reformat-tool' : ''
+
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0]
     if (selectedFile) {
@@ -104,22 +107,22 @@ export default function Home() {
             <div className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-slate-800 dark:to-slate-700 rounded-lg p-6 flex flex-col items-center gap-4">
               <div className="h-24 w-24 relative rounded-lg overflow-hidden shadow-md border-4 border-white dark:border-slate-600">
                 {status === "idle" && !file && (
-                  <img src="/images/wtf.jpg" alt="Ready - WTF expression" className="w-full h-full object-cover" />
+                  <img src={`${basePath}/images/wtf.jpg`} alt="Ready - WTF expression" className="w-full h-full object-cover" />
                 )}
                 {status === "idle" && file && (
-                  <img src="/images/relax.jpg" alt="Ready to cook - Relaxing" className="w-full h-full object-cover" />
+                  <img src={`${basePath}/images/relax.jpg`} alt="Ready to cook - Relaxing" className="w-full h-full object-cover" />
                 )}
                 {status === "loading" && (
-                  <img src="/images/relax.jpg" alt="Loading - Relaxing" className="w-full h-full object-cover" />
+                  <img src={`${basePath}/images/relax.jpg`} alt="Loading - Relaxing" className="w-full h-full object-cover" />
                 )}
                 {status === "processing" && (
-                  <img src="/images/relax.jpg" alt="Processing - Relaxing" className="w-full h-full object-cover" />
+                  <img src={`${basePath}/images/relax.jpg`} alt="Processing - Relaxing" className="w-full h-full object-cover" />
                 )}
                 {status === "success" && (
-                  <img src="/images/happy.jpg" alt="Success - Happy" className="w-full h-full object-cover" />
+                  <img src={`${basePath}/images/happy.jpg`} alt="Success - Happy" className="w-full h-full object-cover" />
                 )}
                 {status === "error" && (
-                  <img src="/images/wtf.jpg" alt="Error - WTF expression" className="w-full h-full object-cover" />
+                  <img src={`${basePath}/images/wtf.jpg`} alt="Error - WTF expression" className="w-full h-full object-cover" />
                 )}
               </div>
               <div className="text-center">
