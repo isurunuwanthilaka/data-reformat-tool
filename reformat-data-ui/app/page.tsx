@@ -6,6 +6,7 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Upload, Download, Loader2, CheckCircle2, AlertCircle } from "lucide-react"
+import * as XLSX from "xlsx"
 
 export default function Home() {
   const [file, setFile] = useState<File | null>(null)
@@ -44,6 +45,8 @@ export default function Home() {
     }
   }
 
+
+
   const handleProcess = async () => {
     if (!file) return
 
@@ -52,24 +55,85 @@ export default function Home() {
     setErrorMessage("")
 
     try {
-      const formData = new FormData()
-      formData.append("file", file)
-
-      // Simulate brief loading state before actual processing
+      // Simulate brief loading state
       await new Promise((resolve) => setTimeout(resolve, 1000))
       setStatus("processing")
 
-      const response = await fetch("/api/reformat", {
-        method: "POST",
-        body: formData,
-      })
+      // Read file
+      const buffer = await file.arrayBuffer()
+      const workbook = XLSX.read(buffer, { type: "array" })
+      const sheetName = workbook.SheetNames[0]
+      if (!sheetName) throw new Error("No sheet found")
+      const sheet = workbook.Sheets[sheetName]
+      if (!sheet) throw new Error("No sheet found")
 
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || "Failed to process file")
+      // Get all rows
+      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][]
+      if (rows.length === 0) throw new Error("No data found")
+
+      // Constants
+      const PREFIX_LEN = 70
+      const BLOCK_SIZE = 32
+      const NUM_BLOCKS = 15
+      const KEEP_BLOCK_LEN = 11
+      const SUFFIX_START_INDEX = 70 + BLOCK_SIZE * NUM_BLOCKS
+
+      // Create new workbook
+      const newWorkbook = XLSX.utils.book_new()
+      const newSheet = XLSX.utils.aoa_to_sheet([])
+
+      // Header
+      const originalHeader = rows[0]
+      const prefixHeader = originalHeader.slice(0, PREFIX_LEN)
+      const blockHeader = originalHeader.slice(70, 70 + KEEP_BLOCK_LEN)
+      const suffixHeader = originalHeader.slice(SUFFIX_START_INDEX)
+      const newHeader = [...prefixHeader, ...blockHeader, ...suffixHeader]
+      XLSX.utils.sheet_add_aoa(newSheet, [newHeader], { origin: 0 })
+
+      let rowIndex = 1
+
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i]
+        const prefixData = row.slice(0, PREFIX_LEN)
+        const suffixData = row.slice(SUFFIX_START_INDEX)
+
+        let numMembers = 0
+        try {
+          const memberValue = row[69]
+          if (memberValue != null) {
+            numMembers = Math.max(0, parseInt(String(memberValue), 10))
+          }
+        } catch (e) {
+          console.warn(`Row ${i}: Error parsing members`)
+        }
+
+        const loopCount = Math.max(1, numMembers)
+        const emptyPrefix = new Array(prefixData.length).fill(null)
+        const emptySuffix = new Array(suffixData.length).fill(null)
+
+        for (let j = 0; j < loopCount; j++) {
+          const currentPrefix = j === 0 ? prefixData : emptyPrefix
+          const currentSuffix = j === 0 ? suffixData : emptySuffix
+
+          let blockData: any[] = []
+          if (j < NUM_BLOCKS) {
+            const start = 70 + j * BLOCK_SIZE
+            const endKeep = start + KEEP_BLOCK_LEN
+            blockData = row.slice(start, endKeep)
+          } else {
+            blockData = new Array(KEEP_BLOCK_LEN).fill(null)
+          }
+
+          const newRow = [...currentPrefix, ...blockData, ...currentSuffix]
+          XLSX.utils.sheet_add_aoa(newSheet, [newRow], { origin: rowIndex })
+          rowIndex++
+        }
       }
 
-      const blob = await response.blob()
+      XLSX.utils.book_append_sheet(newWorkbook, newSheet, "Reformatted Data")
+      const outputBuffer = XLSX.write(newWorkbook, { type: "array", bookType: "xlsx" })
+      const blob = new Blob([outputBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })
+
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
@@ -85,6 +149,7 @@ export default function Home() {
 
       setStatus("success")
     } catch (error) {
+      console.error(error)
       setStatus("error")
       setErrorMessage(error instanceof Error ? error.message : "An error occurred")
     } finally {
