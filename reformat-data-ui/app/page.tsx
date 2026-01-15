@@ -70,7 +70,11 @@ export default function Home() {
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      a.download = "reformatted_data.xlsx"
+      const originalName = fileName || "reformatted_data.xlsx"
+      const lastDotIndex = originalName.lastIndexOf(".")
+      const nameWithoutExt = lastDotIndex !== -1 ? originalName.substring(0, lastDotIndex) : originalName
+      const ext = lastDotIndex !== -1 ? originalName.substring(lastDotIndex) : ".xlsx"
+      a.download = `${nameWithoutExt}-formatted${ext}`
       document.body.appendChild(a)
       a.click()
       window.URL.revokeObjectURL(url)
