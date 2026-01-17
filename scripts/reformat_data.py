@@ -50,10 +50,10 @@ def reformat_excel():
     
     # Missing Data Collection
     missing_data_rows = []
-    missing_data_header = ["Grama Niladhari ID", "Household ID", "Member ID", "Name", "Age", "Contact No", "All Members"]
+    missing_data_header = ["Grama Niladhari Area", "Household ID", "Member ID", "Name", "Age", "Contact No", "All Members"]
     missing_data_rows.append(missing_data_header)
     
-    COL_GN_ID = 5
+    COL_GN_AREA = 4
     COL_HOUSEHOLD_ID = 47
     COL_CONTACT = 61
 
@@ -61,7 +61,7 @@ def reformat_excel():
         prefix_data = list(row[:PREFIX_LEN])
         suffix_data = list(row[SUFFIX_START_INDEX:])
         
-        gn_id = row[COL_GN_ID]
+        gn_area = row[COL_GN_AREA]
         household_id = row[COL_HOUSEHOLD_ID]
         
         # Priority: 10.1 (62), 10.2 (64), 10.3 (66), then 10 (61)
@@ -128,7 +128,7 @@ def reformat_excel():
                     
                     if is_name_missing or is_age_missing:
                         missing_data_rows.append([
-                            gn_id,
+                            gn_area,
                             household_id,
                             m_id,
                             m_name,

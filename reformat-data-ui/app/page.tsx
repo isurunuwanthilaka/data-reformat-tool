@@ -81,7 +81,7 @@ export default function Home() {
       const SUFFIX_START_INDEX = 70 + BLOCK_SIZE * NUM_BLOCKS
 
       // Columns for Missing Data
-      const COL_GN_ID = 5
+      const COL_GN_AREA = 4
       const COL_HOUSEHOLD_ID = 47
       const COL_CONTACT = 61
 
@@ -91,7 +91,7 @@ export default function Home() {
 
       // Missing Data Collection
       const missingDataRows: any[][] = []
-      const missingDataHeader = ["Grama Niladhari ID", "Household ID", "Member ID", "Name", "Age", "Contact No", "All Members"]
+      const missingDataHeader = ["Grama Niladhari Area", "Household ID", "Member ID", "Name", "Age", "Contact No", "All Members"]
       missingDataRows.push(missingDataHeader)
 
       // Header
@@ -109,7 +109,7 @@ export default function Home() {
         const prefixData = row.slice(0, PREFIX_LEN)
         const suffixData = row.slice(SUFFIX_START_INDEX)
 
-        const gnId = row[COL_GN_ID]
+        const gnArea = row[COL_GN_AREA]
         const householdId = row[COL_HOUSEHOLD_ID]
 
         // Priority: 10.1 (62), 10.2 (64), 10.3 (66), then 10 (61)
@@ -179,7 +179,7 @@ export default function Home() {
 
               if (isNameMissing || isAgeMissing) {
                 missingDataRows.push([
-                  gnId,
+                  gnArea,
                   householdId,
                   mId,
                   mName,
