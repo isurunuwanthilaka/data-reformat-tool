@@ -1,3 +1,4 @@
+import json
 import openpyxl
 from copy import copy
 
@@ -46,10 +47,31 @@ def reformat_excel():
     print(f"Original Row Count: {len(rows)}")
     
     generated_rows = 0
+    
+    # Missing Data Collection
+    missing_data_rows = []
+    missing_data_header = ["Grama Niladhari ID", "Household ID", "Member ID", "Name", "Age", "Contact No", "All Members"]
+    missing_data_rows.append(missing_data_header)
+    
+    COL_GN_ID = 5
+    COL_HOUSEHOLD_ID = 47
+    COL_CONTACT = 61
 
     for row_idx, row in enumerate(rows[1:], start=2): # Start from row 2
         prefix_data = list(row[:PREFIX_LEN])
         suffix_data = list(row[SUFFIX_START_INDEX:])
+        
+        gn_id = row[COL_GN_ID]
+        household_id = row[COL_HOUSEHOLD_ID]
+        
+        # Priority: 10.1 (62), 10.2 (64), 10.3 (66), then 10 (61)
+        contact_indices = [62, 64, 66, 61]
+        contact_no = None
+        for c_idx in contact_indices:
+            val = row[c_idx]
+            if val is not None and str(val).strip() != "":
+                contact_no = val
+                break
         
         # Determine number of members from Column 69 (Index 69)
         # Value might be string or int
@@ -63,16 +85,20 @@ def reformat_excel():
             print(f"Row {row_idx}: Could not parse member count '{row[69]}'. Defaulting to 0.")
             num_members = 0
             
-        # Create empty placeholders
-        empty_prefix = [None] * len(prefix_data)
-        empty_suffix = [None] * len(suffix_data)
-        
-        # If num_members is 0, we might still want to output the household row?
-        # Requirement: "if members are 7 keep 7 rows". 
-        # If 0 members (unlikely), strict reading suggests 0 rows.
-        # But usually we'd want to keep the household info.
-        # Let's assume minimum 1 row if num_members is 0 or absent to preserve data.
         loop_count = max(1, num_members)
+        
+        # Pre-scan for All Members Summary
+        all_members_list = []
+        for k in range(loop_count):
+            if k < NUM_BLOCKS:
+                k_start = 70 + (k * BLOCK_SIZE)
+                # Member Name index is +1 relative to block, Age is +2
+                k_name = row[k_start + 1]
+                k_age = row[k_start + 2]
+                if k_name or k_age:
+                     all_members_list.append({"name": str(k_name) if k_name else "", "age": str(k_age) if k_age else ""})
+        
+        all_members_json = json.dumps(all_members_list, ensure_ascii=False)
         
         for i in range(loop_count):
             # Always duplicate prefix/suffix for all member rows
@@ -84,6 +110,33 @@ def reformat_excel():
                 start = 70 + (i * BLOCK_SIZE)
                 end_keep = start + KEEP_BLOCK_LEN
                 block_data = list(row[start:end_keep])
+                
+                # Check for missing Name or Age
+                # Relative indices: MemberID=0, Name=1, Age=2 (within block)
+                m_id = block_data[0]
+                m_name = block_data[1]
+                m_age = block_data[2]
+                
+                # If Member ID is missing, ignore this block entirely (invalid missing data)
+                if m_id is None or str(m_id).strip() == "":
+                    # Still add to main sheet? Usually yes, generic empty row behavior.
+                    # But for missing data report, we skip.
+                    pass
+                else:
+                    is_name_missing = m_name is None or str(m_name).strip() == ""
+                    is_age_missing = m_age is None or str(m_age).strip() == ""
+                    
+                    if is_name_missing or is_age_missing:
+                        missing_data_rows.append([
+                            gn_id,
+                            household_id,
+                            m_id,
+                            m_name,
+                            m_age,
+                            contact_no,
+                            all_members_json
+                        ])
+                    
             else:
                 # If member count exceeds columns (unlikely), pad with None
                 block_data = [None] * KEEP_BLOCK_LEN
@@ -95,6 +148,22 @@ def reformat_excel():
     print(f"Generated {generated_rows} new rows.")
     new_wb.save(output_file)
     print(f"Saved to {output_file}")
+    
+    # Save Missing Data File if needed
+    if len(missing_data_rows) > 1:
+        print(f"Found {len(missing_data_rows)-1} members with missing data.")
+        missing_wb = openpyxl.Workbook()
+        missing_sheet = missing_wb.active
+        missing_sheet.title = "Missing Data"
+        
+        for m_row in missing_data_rows:
+            missing_sheet.append(m_row)
+            
+        missing_file = "missing_data.xlsx"
+        missing_wb.save(missing_file)
+        print(f"Saved missing data report to {missing_file}")
+    else:
+        print("No missing data found.")
 
 if __name__ == "__main__":
     reformat_excel()

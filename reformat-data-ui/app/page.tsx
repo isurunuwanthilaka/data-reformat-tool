@@ -14,6 +14,7 @@ export default function Home() {
   const [status, setStatus] = useState<"idle" | "loading" | "processing" | "success" | "error">("idle")
   const [errorMessage, setErrorMessage] = useState("")
   const [fileName, setFileName] = useState("")
+  const [missingDataUrl, setMissingDataUrl] = useState<string | null>(null)
 
   // Production base path for GitHub Pages
   const basePath = process.env.NODE_ENV === 'production' ? '/data-reformat-tool' : ''
@@ -25,6 +26,7 @@ export default function Home() {
       setFileName(selectedFile.name)
       setStatus("idle")
       setErrorMessage("")
+      setMissingDataUrl(null)
     }
   }
 
@@ -42,10 +44,9 @@ export default function Home() {
       setFileName(droppedFile.name)
       setStatus("idle")
       setErrorMessage("")
+      setMissingDataUrl(null)
     }
   }
-
-
 
   const handleProcess = async () => {
     if (!file) return
@@ -53,6 +54,7 @@ export default function Home() {
     setIsProcessing(true)
     setStatus("loading")
     setErrorMessage("")
+    setMissingDataUrl(null)
 
     try {
       // Simulate brief loading state
@@ -78,9 +80,19 @@ export default function Home() {
       const KEEP_BLOCK_LEN = 11
       const SUFFIX_START_INDEX = 70 + BLOCK_SIZE * NUM_BLOCKS
 
+      // Columns for Missing Data
+      const COL_GN_ID = 5
+      const COL_HOUSEHOLD_ID = 47
+      const COL_CONTACT = 61
+
       // Create new workbook
       const newWorkbook = XLSX.utils.book_new()
       const newSheet = XLSX.utils.aoa_to_sheet([])
+
+      // Missing Data Collection
+      const missingDataRows: any[][] = []
+      const missingDataHeader = ["Grama Niladhari ID", "Household ID", "Member ID", "Name", "Age", "Contact No", "All Members"]
+      missingDataRows.push(missingDataHeader)
 
       // Header
       const originalHeader = rows[0]
@@ -97,6 +109,20 @@ export default function Home() {
         const prefixData = row.slice(0, PREFIX_LEN)
         const suffixData = row.slice(SUFFIX_START_INDEX)
 
+        const gnId = row[COL_GN_ID]
+        const householdId = row[COL_HOUSEHOLD_ID]
+
+        // Priority: 10.1 (62), 10.2 (64), 10.3 (66), then 10 (61)
+        const contactIndices = [62, 64, 66, 61]
+        let contactNo = null
+        for (const cIdx of contactIndices) {
+          const val = row[cIdx]
+          if (val != null && String(val).trim() !== "") {
+            contactNo = val
+            break
+          }
+        }
+
         let numMembers = 0
         try {
           const memberValue = row[69]
@@ -108,8 +134,24 @@ export default function Home() {
         }
 
         const loopCount = Math.max(1, numMembers)
-        const emptyPrefix = new Array(prefixData.length).fill(null)
-        const emptySuffix = new Array(suffixData.length).fill(null)
+
+        // Pre-scan for All Members Summary
+        const allMembersList = []
+        for (let k = 0; k < loopCount; k++) {
+          if (k < NUM_BLOCKS) {
+            const kStart = 70 + (k * BLOCK_SIZE)
+            // Member Name index is +1 relative to block, Age is +2
+            const kName = row[kStart + 1]
+            const kAge = row[kStart + 2]
+            if ((kName != null && String(kName).trim() !== "") || (kAge != null && String(kAge).trim() !== "")) {
+              allMembersList.push({
+                name: kName ? String(kName) : "",
+                age: kAge ? String(kAge) : ""
+              })
+            }
+          }
+        }
+        const allMembersJson = JSON.stringify(allMembersList)
 
         for (let j = 0; j < loopCount; j++) {
           // Always duplicate prefix/suffix for all member rows
@@ -121,6 +163,33 @@ export default function Home() {
             const start = 70 + j * BLOCK_SIZE
             const endKeep = start + KEEP_BLOCK_LEN
             blockData = row.slice(start, endKeep)
+
+            // Check for missing Name or Age
+            // Relative indices: MemberID=0, Name=1, Age=2
+            const mName = blockData[1]
+            const mAge = blockData[2]
+            const mId = blockData[0]
+
+            // If Member ID is missing, ignore this block entirely (invalid missing data)
+            if (mId === undefined || mId === null || String(mId).trim() === "") {
+              // Skip missing data check
+            } else {
+              const isNameMissing = mName === undefined || mName === null || String(mName).trim() === ""
+              const isAgeMissing = mAge === undefined || mAge === null || String(mAge).trim() === ""
+
+              if (isNameMissing || isAgeMissing) {
+                missingDataRows.push([
+                  gnId,
+                  householdId,
+                  mId,
+                  mName,
+                  mAge,
+                  contactNo,
+                  allMembersJson
+                ])
+              }
+            }
+
           } else {
             blockData = new Array(KEEP_BLOCK_LEN).fill(null)
           }
@@ -131,6 +200,7 @@ export default function Home() {
         }
       }
 
+      // Finalize Main Workbook
       XLSX.utils.book_append_sheet(newWorkbook, newSheet, "Reformatted Data")
       const outputBuffer = XLSX.write(newWorkbook, { type: "array", bookType: "xlsx" })
       const blob = new Blob([outputBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })
@@ -147,6 +217,17 @@ export default function Home() {
       a.click()
       window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
+
+      // Handle Missing Data File
+      if (missingDataRows.length > 1) { // Header is 1 row
+        const missingWorkbook = XLSX.utils.book_new()
+        const missingSheet = XLSX.utils.aoa_to_sheet(missingDataRows)
+        XLSX.utils.book_append_sheet(missingWorkbook, missingSheet, "Missing Data")
+        const missingBuffer = XLSX.write(missingWorkbook, { type: "array", bookType: "xlsx" })
+        const missingBlob = new Blob([missingBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })
+        const missingUrl = window.URL.createObjectURL(missingBlob)
+        setMissingDataUrl(missingUrl)
+      }
 
       setStatus("success")
     } catch (error) {
@@ -249,6 +330,25 @@ export default function Home() {
             <div className="flex items-center gap-2 p-4 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg">
               <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0" />
               <p className="text-sm text-red-800 dark:text-red-200">{errorMessage}</p>
+            </div>
+          )}
+
+          {/* Missing Data Download Button */}
+          {missingDataUrl && (
+            <div className="flex items-center gap-2 p-4 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg flex-col items-start">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+                <p className="text-sm text-amber-800 dark:text-amber-200">
+                  <strong>Attention:</strong> Some members have missing Name or Age.
+                </p>
+              </div>
+              <a
+                href={missingDataUrl}
+                download="missing_data.xlsx"
+                className="mt-2 text-sm font-medium text-amber-700 hover:text-amber-900 underline"
+              >
+                Download Missing Data Report
+              </a>
             </div>
           )}
 
