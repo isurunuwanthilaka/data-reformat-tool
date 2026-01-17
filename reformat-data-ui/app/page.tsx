@@ -112,8 +112,9 @@ export default function Home() {
         const emptySuffix = new Array(suffixData.length).fill(null)
 
         for (let j = 0; j < loopCount; j++) {
-          const currentPrefix = j === 0 ? prefixData : emptyPrefix
-          const currentSuffix = j === 0 ? suffixData : emptySuffix
+          // Always duplicate prefix/suffix for all member rows
+          const currentPrefix = prefixData
+          const currentSuffix = suffixData
 
           let blockData: any[] = []
           if (j < NUM_BLOCKS) {

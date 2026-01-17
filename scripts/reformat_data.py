@@ -75,13 +75,9 @@ def reformat_excel():
         loop_count = max(1, num_members)
         
         for i in range(loop_count):
-            # Decide which prefix/suffix to use
-            if i == 0:
-                curr_prefix = prefix_data
-                curr_suffix = suffix_data
-            else:
-                curr_prefix = empty_prefix
-                curr_suffix = empty_suffix
+            # Always duplicate prefix/suffix for all member rows
+            curr_prefix = prefix_data
+            curr_suffix = suffix_data
                 
             # Extract block data
             if i < NUM_BLOCKS:
