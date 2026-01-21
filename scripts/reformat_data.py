@@ -84,8 +84,20 @@ def reformat_excel():
         except ValueError:
             print(f"Row {row_idx}: Could not parse member count '{row[69]}'. Defaulting to 0.")
             num_members = 0
-            
-        loop_count = max(1, num_members)
+        
+        # Count actual filled member blocks (check if Member ID or Name exists)
+        actual_filled_blocks = 0
+        for k in range(NUM_BLOCKS):
+            k_start = 70 + (k * BLOCK_SIZE)
+            if k_start + 1 < len(row):
+                k_id = row[k_start]
+                k_name = row[k_start + 1]
+                # Consider block filled if ID or Name exists
+                if (k_id is not None and str(k_id).strip() != "") or (k_name is not None and str(k_name).strip() != ""):
+                    actual_filled_blocks = k + 1
+        
+        # Use the maximum of declared count and actual filled blocks
+        loop_count = max(1, num_members, actual_filled_blocks)
         
         # Pre-scan for All Members Summary
         all_members_list = []

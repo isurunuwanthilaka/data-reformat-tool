@@ -133,7 +133,22 @@ export default function Home() {
           console.warn(`Row ${i}: Error parsing members`)
         }
 
-        const loopCount = Math.max(1, numMembers)
+        // Count actual filled member blocks (check if Member ID or Name exists)
+        let actualFilledBlocks = 0
+        for (let k = 0; k < NUM_BLOCKS; k++) {
+          const kStart = 70 + (k * BLOCK_SIZE)
+          if (kStart + 1 < row.length) {
+            const kId = row[kStart]
+            const kName = row[kStart + 1]
+            // Consider block filled if ID or Name exists
+            if ((kId != null && String(kId).trim() !== "") || (kName != null && String(kName).trim() !== "")) {
+              actualFilledBlocks = k + 1
+            }
+          }
+        }
+
+        // Use the maximum of declared count and actual filled blocks
+        const loopCount = Math.max(1, numMembers, actualFilledBlocks)
 
         // Pre-scan for All Members Summary
         const allMembersList = []
